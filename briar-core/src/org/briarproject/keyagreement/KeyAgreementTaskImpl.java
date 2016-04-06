@@ -36,8 +36,8 @@ class KeyAgreementTaskImpl extends Thread implements
 	private final KeyPair localKeyPair;
 	private final KeyAgreementConnector connector;
 
-	private Payload localPayload;
-	private Payload remotePayload;
+	private volatile Payload localPayload;
+	private volatile Payload remotePayload;
 
 	public KeyAgreementTaskImpl(Clock clock, CryptoComponent crypto,
 			EventBus eventBus, PayloadEncoder payloadEncoder,
@@ -61,21 +61,17 @@ class KeyAgreementTaskImpl extends Thread implements
 	@Override
 	public synchronized void stopListening() {
 		if (localPayload != null) {
-			if (remotePayload == null)
-				connector.stopListening();
-			else
-				interrupt();
+			if (remotePayload == null) connector.stopListening();
+			else interrupt();
 		}
 	}
 
 	@Override
 	public synchronized void connectAndRunProtocol(Payload remotePayload) {
 		if (this.localPayload == null)
-			throw new IllegalStateException(
-					"Must listen before connecting");
+			throw new IllegalStateException("Must listen before connecting");
 		if (this.remotePayload != null)
-			throw new IllegalStateException(
-					"Already provided remote payload for this task");
+			throw new IllegalStateException("Already provided remote payload");
 		this.remotePayload = remotePayload;
 		start();
 	}

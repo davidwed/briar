@@ -33,7 +33,7 @@ class PayloadEncoderImpl implements PayloadEncoder {
 			w.writeListStart(); // Descriptors start
 			for (TransportDescriptor d : p.getTransportDescriptors()) {
 				w.writeListStart();
-				w.writeString(d.getIdentifier().getString());
+				w.writeString(d.getId().getString());
 				w.writeDictionary(d.getProperties());
 				w.writeListEnd();
 			}

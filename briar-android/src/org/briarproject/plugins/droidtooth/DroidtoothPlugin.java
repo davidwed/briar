@@ -9,9 +9,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 
+import org.briarproject.android.api.AndroidExecutor;
 import org.briarproject.android.util.AndroidUtils;
 import org.briarproject.api.TransportId;
-import org.briarproject.android.api.AndroidExecutor;
 import org.briarproject.api.contact.ContactId;
 import org.briarproject.api.crypto.PseudoRandom;
 import org.briarproject.api.keyagreement.KeyAgreementConnection;
@@ -451,7 +451,7 @@ class DroidtoothPlugin implements DuplexPlugin {
 	public DuplexTransportConnection createKeyAgreementConnection(
 			byte[] remoteCommitment, TransportDescriptor d, long timeout) {
 		if (!isRunning()) return null;
-		if (!ID.equals(d.getIdentifier())) return null;
+		if (!ID.equals(d.getId())) return null;
 		TransportProperties p = d.getProperties();
 		if (p == null) return null;
 		String address = p.get(PROP_ADDRESS);
@@ -610,8 +610,7 @@ class DroidtoothPlugin implements DuplexPlugin {
 				@Override
 				public KeyAgreementConnection call() throws IOException {
 					BluetoothSocket s = ss.accept();
-					if (LOG.isLoggable(INFO))
-						LOG.info(ID.getString() + ": Incoming connection");
+					LOG.info("Incoming connection");
 					return new KeyAgreementConnection(
 							new DroidtoothTransportConnection(
 									DroidtoothPlugin.this, s), ID);
@@ -621,6 +620,7 @@ class DroidtoothPlugin implements DuplexPlugin {
 
 		@Override
 		public void close() {
+			LOG.info("Closing listening socket");
 			try {
 				ss.close();
 			} catch (IOException e) {

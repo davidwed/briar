@@ -374,7 +374,7 @@ class BluetoothPlugin implements DuplexPlugin {
 	public DuplexTransportConnection createKeyAgreementConnection(
 			byte[] remoteCommitment, TransportDescriptor d, long timeout) {
 		if (!isRunning()) return null;
-		if (!ID.equals(d.getIdentifier())) return null;
+		if (!ID.equals(d.getId())) return null;
 		TransportProperties p = d.getProperties();
 		if (p == null) return null;
 		String address = p.get(PROP_ADDRESS);
@@ -486,7 +486,7 @@ class BluetoothPlugin implements DuplexPlugin {
 				public KeyAgreementConnection call() throws Exception {
 					StreamConnection s = ss.acceptAndOpen();
 					if (LOG.isLoggable(INFO))
-						LOG.info(ID.getString() + ": Incoming connection");
+						LOG.info(ID + ": Incoming connection");
 					return new KeyAgreementConnection(
 							new BluetoothTransportConnection(
 									BluetoothPlugin.this, s), ID);
@@ -496,6 +496,7 @@ class BluetoothPlugin implements DuplexPlugin {
 
 		@Override
 		public void close() {
+			LOG.info("Closing key agreement listening socket");
 			try {
 				ss.close();
 			} catch (IOException e) {

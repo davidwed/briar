@@ -17,7 +17,7 @@ public class TransportDescriptor {
 	}
 
 	/** Returns the transport identifier. */
-	public TransportId getIdentifier() {
+	public TransportId getId() {
 		return id;
 	}
 
