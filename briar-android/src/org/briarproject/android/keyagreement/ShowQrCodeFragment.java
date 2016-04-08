@@ -59,6 +59,8 @@ import static java.util.logging.Level.WARNING;
 public class ShowQrCodeFragment extends BaseEventFragment
 		implements QrCodeDecoder.ResultCallback {
 
+	private static final int CAMERA_MAX_RETRIES = 3;
+	private static final int CAMERA_RETRY_DELAY = 500; // Milliseconds
 	private static final Logger LOG =
 			Logger.getLogger(ShowQrCodeFragment.class.getName());
 
@@ -194,33 +196,34 @@ public class ShowQrCodeFragment extends BaseEventFragment
 	private void openCamera() {
 		AsyncTask<Void, Void, Camera> openTask =
 				new AsyncTask<Void, Void, Camera>() {
+
 					@Override
 					protected Camera doInBackground(Void... unused) {
 						LOG.info("Opening camera");
-						try {
-							return Camera.open();
-						} catch (RuntimeException e) {
-							LOG.log(WARNING,
-									"Error opening camera, trying again", e);
-							try {
-								Thread.sleep(1000);
-							} catch (InterruptedException e2) {
-								LOG.info("Interrupted before second attempt");
-								return null;
-							}
+						// Work around transient failures
+						for (int i = 0; i < CAMERA_MAX_RETRIES; i++) {
 							try {
 								return Camera.open();
-							} catch (RuntimeException e2) {
-								LOG.log(WARNING, "Error opening camera", e2);
+							} catch (RuntimeException e) {
+								LOG.warning("Error opening camera: " + e);
+							}
+							try {
+								Thread.sleep(CAMERA_RETRY_DELAY);
+							} catch (InterruptedException e) {
+								LOG.info("Interrupted while opening camera");
 								return null;
 							}
 						}
+						LOG.info("Failed to open camera");
+						return null;
 					}
 
 					@Override
 					protected void onPostExecute(Camera camera) {
 						if (camera == null) {
-							// TODO better solution?
+							Toast.makeText(getActivity(),
+									R.string.could_not_open_camera,
+									LENGTH_LONG).show();
 							getActivity().finish();
 						} else {
 							cameraView.start(camera, decoder, 0);
@@ -236,15 +239,7 @@ public class ShowQrCodeFragment extends BaseEventFragment
 			cameraView.stop();
 		} catch (RuntimeException e) {
 			LOG.log(WARNING, "Error releasing camera", e);
-			// TODO better solution
-			getActivity().finish();
 		}
-	}
-
-	private void reset() {
-		cameraView.setVisibility(View.VISIBLE);
-		startListening();
-		openCamera();
 	}
 
 	private void qrCodeScanned(String content) {
@@ -256,9 +251,9 @@ public class ShowQrCodeFragment extends BaseEventFragment
 			status.setText(R.string.connecting_to_device);
 			task.connectAndRunProtocol(remotePayload);
 		} catch (IOException e) {
-			// TODO show failure
 			Toast.makeText(getActivity(), R.string.qr_code_invalid,
 					LENGTH_LONG).show();
+			getActivity().finish();
 		}
 	}
 
@@ -274,8 +269,7 @@ public class ShowQrCodeFragment extends BaseEventFragment
 		} else if (e instanceof KeyAgreementStartedEvent) {
 			keyAgreementStarted();
 		} else if (e instanceof KeyAgreementAbortedEvent) {
-			KeyAgreementAbortedEvent event = (KeyAgreementAbortedEvent) e;
-			keyAgreementAborted(event.didRemoteAbort());
+			keyAgreementFailed();
 		}
 	}
 
@@ -300,10 +294,9 @@ public class ShowQrCodeFragment extends BaseEventFragment
 		listener.runOnUiThread(new Runnable() {
 			@Override
 			public void run() {
-				reset();
-				// TODO show failure somewhere persistent?
 				Toast.makeText(getActivity(), R.string.connection_failed,
 						LENGTH_LONG).show();
+				getActivity().finish();
 			}
 		});
 	}
@@ -323,21 +316,6 @@ public class ShowQrCodeFragment extends BaseEventFragment
 			public void run() {
 				listener.showLoadingScreen(false,
 						R.string.authenticating_with_device);
-			}
-		});
-	}
-
-	private void keyAgreementAborted(final boolean remoteAborted) {
-		listener.runOnUiThread(new Runnable() {
-			@Override
-			public void run() {
-				reset();
-				listener.hideLoadingScreen();
-				// TODO show abort somewhere persistent?
-				Toast.makeText(getActivity(),
-						remoteAborted ? R.string.connection_aborted_remote :
-								R.string.connection_aborted_local, LENGTH_LONG)
-						.show();
 			}
 		});
 	}
