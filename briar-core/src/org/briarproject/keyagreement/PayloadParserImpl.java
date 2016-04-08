@@ -35,18 +35,18 @@ class PayloadParserImpl implements PayloadParser {
 		BdfReader r = bdfReaderFactory.createReader(in);
 		r.readListStart(); // Payload start
 		int proto = (int) r.readLong();
-		if (proto != PROTOCOL_VERSION)
-			throw new FormatException();
+		if (proto != PROTOCOL_VERSION) throw new FormatException();
 		byte[] commitment = r.readRaw(COMMIT_LENGTH);
-		if (commitment.length != COMMIT_LENGTH)
-			throw new FormatException();
-		List<TransportDescriptor> descriptors = new ArrayList<TransportDescriptor>();
+		if (commitment.length != COMMIT_LENGTH) throw new FormatException();
+		List<TransportDescriptor> descriptors =
+				new ArrayList<TransportDescriptor>();
 		r.readListStart(); // Descriptors start
-		while (r.hasList()) {
+		while (!r.hasListEnd()) {
 			r.readListStart();
 			while (!r.hasListEnd()) {
-				TransportId id =
-						new TransportId(r.readString(MAX_PROPERTY_LENGTH));
+				String idString = r.readString(MAX_PROPERTY_LENGTH);
+				if (idString.isEmpty()) throw new FormatException();
+				TransportId id = new TransportId(idString);
 				TransportProperties p = new TransportProperties();
 				r.readDictionaryStart();
 				while (!r.hasDictionaryEnd()) {
@@ -61,8 +61,7 @@ class PayloadParserImpl implements PayloadParser {
 		}
 		r.readListEnd(); // Descriptors end
 		r.readListEnd(); // Payload end
-		if (!r.eof())
-			throw new FormatException();
+		if (!r.eof()) throw new FormatException();
 		return new Payload(commitment, descriptors);
 	}
 }
