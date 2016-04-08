@@ -5,10 +5,12 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Bitmap;
 import android.hardware.Camera;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
+import android.support.v4.app.FragmentActivity;
 import android.util.Base64;
 import android.view.Display;
 import android.view.LayoutInflater;
@@ -21,6 +23,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.zxing.Result;
+import com.google.zxing.WriterException;
 
 import org.briarproject.R;
 import org.briarproject.android.AndroidComponent;
@@ -50,6 +53,7 @@ import static android.bluetooth.BluetoothAdapter.ACTION_STATE_CHANGED;
 import static android.bluetooth.BluetoothAdapter.EXTRA_STATE;
 import static android.bluetooth.BluetoothAdapter.STATE_ON;
 import static android.content.pm.ActivityInfo.SCREEN_ORIENTATION_NOSENSOR;
+import static android.view.View.GONE;
 import static android.widget.LinearLayout.HORIZONTAL;
 import static android.widget.LinearLayout.VERTICAL;
 import static android.widget.Toast.LENGTH_LONG;
@@ -220,17 +224,20 @@ public class ShowQrCodeFragment extends BaseEventFragment
 
 					@Override
 					protected void onPostExecute(Camera camera) {
-						if (camera == null) {
-							Toast.makeText(getActivity(),
-									R.string.could_not_open_camera,
-									LENGTH_LONG).show();
-							getActivity().finish();
-						} else {
-							cameraView.start(camera, decoder, 0);
-						}
+						if (camera == null)
+							showToastAndFinish(R.string.could_not_open_camera);
+						else cameraView.start(camera, decoder, 0);
 					}
 				};
 		openTask.execute();
+	}
+
+	private void showToastAndFinish(int resid) {
+		FragmentActivity fa = getActivity();
+		if (fa != null) {
+			Toast.makeText(fa, resid, LENGTH_LONG).show();
+			fa.finish();
+		}
 	}
 
 	private void releaseCamera() {
@@ -245,15 +252,16 @@ public class ShowQrCodeFragment extends BaseEventFragment
 	private void qrCodeScanned(String content) {
 		try {
 			// TODO use Base32
-			Payload remotePayload = payloadParser.parse(
-					Base64.decode(content, 0));
-			cameraView.setVisibility(View.GONE);
+			byte[] payloadBytes = Base64.decode(content, 0);
+			Payload remotePayload = payloadParser.parse(payloadBytes);
+			cameraView.setVisibility(GONE);
 			status.setText(R.string.connecting_to_device);
 			task.connectAndRunProtocol(remotePayload);
+		} catch (IllegalArgumentException e) {
+			// Thrown by Base64.decode() if incorrectly padded
+			showToastAndFinish(R.string.qr_code_invalid);
 		} catch (IOException e) {
-			Toast.makeText(getActivity(), R.string.qr_code_invalid,
-					LENGTH_LONG).show();
-			getActivity().finish();
+			showToastAndFinish(R.string.qr_code_invalid);
 		}
 	}
 
@@ -278,14 +286,22 @@ public class ShowQrCodeFragment extends BaseEventFragment
 			@Override
 			public void run() {
 				// TODO use Base32
-				String input = Base64.encodeToString(
-						payloadEncoder.encode(localPayload), 0);
-				qrCode.setImageBitmap(
-						QrCodeUtils.createQrCode(getActivity(), input));
-				// Simple fade-in animation
-				AlphaAnimation anim = new AlphaAnimation(0.0f, 1.0f);
-				anim.setDuration(200);
-				qrCode.startAnimation(anim);
+				byte[] payloadBytes = payloadEncoder.encode(localPayload);
+				String base64 = Base64.encodeToString(payloadBytes, 0);
+				// The fragment may no longer belong to an activity
+				FragmentActivity fa = getActivity();
+				if (fa == null) return;
+				try {
+					Bitmap bitmap = QrCodeUtils.createQrCode(fa, base64);
+					qrCode.setImageBitmap(bitmap);
+					// Simple fade-in animation
+					AlphaAnimation anim = new AlphaAnimation(0.0f, 1.0f);
+					anim.setDuration(200);
+					qrCode.startAnimation(anim);
+				} catch (WriterException e) {
+					if (LOG.isLoggable(WARNING))
+						LOG.log(WARNING, e.toString(), e);
+				}
 			}
 		});
 	}
@@ -294,9 +310,7 @@ public class ShowQrCodeFragment extends BaseEventFragment
 		listener.runOnUiThread(new Runnable() {
 			@Override
 			public void run() {
-				Toast.makeText(getActivity(), R.string.connection_failed,
-						LENGTH_LONG).show();
-				getActivity().finish();
+				showToastAndFinish(R.string.connection_failed);
 			}
 		});
 	}
