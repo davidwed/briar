@@ -30,4 +30,13 @@ public interface AndroidExecutor {
 	 * Runs the given task on the main UI thread.
 	 */
 	void runOnUiThread(Runnable r);
+
+	/**
+	 * Runs the given task on the main UI thread.
+	 *
+	 * @param nowIfPossible if true and the current thread is the main UI
+	 * thread, the task is run immediately rather than being posted to the main
+	 * UI thread's message queue.
+	 */
+	void runOnUiThread(Runnable r, boolean nowIfPossible);
 }

@@ -144,7 +144,7 @@ public class EmojiProvider {
 					public void run() {
 						drawable.setBitmap(result);
 					}
-				});
+				}, true);
 			}
 
 			@Override

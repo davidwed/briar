@@ -1,6 +1,5 @@
 package org.briarproject.bramble.system;
 
-import android.app.Application;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -13,8 +12,6 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import javax.inject.Inject;
-
 class AndroidExecutorImpl implements AndroidExecutor {
 
 	private final Handler uiHandler;
@@ -24,9 +21,8 @@ class AndroidExecutorImpl implements AndroidExecutor {
 
 	private volatile Handler backgroundHandler = null;
 
-	@Inject
-	AndroidExecutorImpl(Application app) {
-		uiHandler = new Handler(app.getApplicationContext().getMainLooper());
+	AndroidExecutorImpl() {
+		uiHandler = new Handler(Looper.getMainLooper());
 		loop = new Runnable() {
 			@Override
 			public void run() {
@@ -74,5 +70,15 @@ class AndroidExecutorImpl implements AndroidExecutor {
 	@Override
 	public void runOnUiThread(Runnable r) {
 		uiHandler.post(r);
+	}
+
+	@Override
+	public void runOnUiThread(Runnable r, boolean nowIfPossible) {
+		if (nowIfPossible && Thread.currentThread().equals(
+				Looper.getMainLooper().getThread())) {
+			r.run();
+		} else {
+			uiHandler.post(r);
+		}
 	}
 }
