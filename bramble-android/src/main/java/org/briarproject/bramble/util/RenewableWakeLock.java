@@ -44,7 +44,7 @@ public class RenewableWakeLock {
 	}
 
 	public void acquire() {
-		if (LOG.isLoggable(INFO)) LOG.info("Acquiring wake lock " + tag );
+		if (LOG.isLoggable(INFO)) LOG.info("Acquiring wake lock " + tag);
 		synchronized (lock) {
 			if (wakeLock != null) {
 				LOG.info("Already acquired");
@@ -58,7 +58,7 @@ public class RenewableWakeLock {
 	}
 
 	private void renew() {
-		if (LOG.isLoggable(INFO)) LOG.info("Renewing wake lock " + tag );
+		if (LOG.isLoggable(INFO)) LOG.info("Renewing wake lock " + tag);
 		synchronized (lock) {
 			if (wakeLock == null) {
 				LOG.info("Already released");
@@ -74,7 +74,7 @@ public class RenewableWakeLock {
 	}
 
 	public void release() {
-		if (LOG.isLoggable(INFO)) LOG.info("Releasing wake lock " + tag );
+		if (LOG.isLoggable(INFO)) LOG.info("Releasing wake lock " + tag);
 		synchronized (lock) {
 			if (wakeLock == null) {
 				LOG.info("Already released");
