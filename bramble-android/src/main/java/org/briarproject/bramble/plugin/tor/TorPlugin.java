@@ -37,7 +37,7 @@ import org.briarproject.bramble.api.settings.event.SettingsUpdatedEvent;
 import org.briarproject.bramble.api.system.LocationUtils;
 import org.briarproject.bramble.util.AndroidUtils;
 import org.briarproject.bramble.util.IoUtils;
-import org.briarproject.bramble.util.ScheduledExecutorServiceWakeLock;
+import org.briarproject.bramble.util.RenewableWakeLock;
 import org.briarproject.bramble.util.StringUtils;
 
 import java.io.Closeable;
@@ -60,6 +60,7 @@ import java.util.Map.Entry;
 import java.util.Scanner;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
@@ -75,6 +76,7 @@ import static android.net.ConnectivityManager.CONNECTIVITY_ACTION;
 import static android.net.ConnectivityManager.TYPE_WIFI;
 import static android.os.PowerManager.PARTIAL_WAKE_LOCK;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.logging.Level.INFO;
 import static java.util.logging.Level.WARNING;
 import static net.freehaven.tor.control.TorControlCommands.HS_ADDRESS;
@@ -114,9 +116,8 @@ class TorPlugin implements DuplexPlugin, EventHandler, EventListener {
 	private final ConnectionStatus connectionStatus;
 	private final File torDirectory, torFile, geoIpFile, configFile;
 	private final File doneFile, cookieFile;
-	private PowerManager.WakeLock wakeLock;
+	private final RenewableWakeLock wakeLock;
 	private final AtomicBoolean used = new AtomicBoolean(false);
-	private final ScheduledExecutorServiceWakeLock scheduledExecutorServiceWakeLock;
 
 	private volatile boolean running = false;
 	private volatile ServerSocket socket = null;
@@ -124,11 +125,11 @@ class TorPlugin implements DuplexPlugin, EventHandler, EventListener {
 	private volatile TorControlConnection controlConnection = null;
 	private volatile BroadcastReceiver networkStateReceiver = null;
 
-	TorPlugin(Executor ioExecutor, Context appContext,
-			LocationUtils locationUtils, DevReporter reporter,
-			SocketFactory torSocketFactory, Backoff backoff,
-			DuplexPluginCallback callback, String architecture, int maxLatency,
-			int maxIdleTime) {
+	TorPlugin(Executor ioExecutor, ScheduledExecutorService scheduler,
+			Context appContext, LocationUtils locationUtils,
+			DevReporter reporter, SocketFactory torSocketFactory,
+			Backoff backoff, DuplexPluginCallback callback, String architecture,
+			int maxLatency, int maxIdleTime) {
 		this.ioExecutor = ioExecutor;
 		this.appContext = appContext;
 		this.locationUtils = locationUtils;
@@ -149,24 +150,10 @@ class TorPlugin implements DuplexPlugin, EventHandler, EventListener {
 		configFile = new File(torDirectory, "torrc");
 		doneFile = new File(torDirectory, "done");
 		cookieFile = new File(torDirectory, ".tor/control_auth_cookie");
-		scheduledExecutorServiceWakeLock = new ScheduledExecutorServiceWakeLock(appContext);
-		scheduledExecutorServiceWakeLock.setRunnable(new Runnable() {
-			@Override
-			public void run() {
-				LOG.info("Renewing wake lock");
-				wakeLock.release();
-				aquireWakeLock();
-			}
-		});
-		aquireWakeLock();
-	}
-
-	private void aquireWakeLock(){
-		LOG.info("Aquiring wake lock");
-		PowerManager pm = (PowerManager) appContext.getSystemService(POWER_SERVICE);
-		wakeLock = pm.newWakeLock(PARTIAL_WAKE_LOCK, "TorPlugin");
-		wakeLock.setReferenceCounted(false);
-		scheduledExecutorServiceWakeLock.setAlarm(1800000, MILLISECONDS);
+		Object o = appContext.getSystemService(POWER_SERVICE);
+		PowerManager pm = (PowerManager) o;
+		wakeLock = new RenewableWakeLock(pm, scheduler, PARTIAL_WAKE_LOCK,
+				"TorPlugin", 30, MINUTES);
 	}
 
 	@Override
@@ -219,11 +206,11 @@ class TorPlugin implements DuplexPlugin, EventHandler, EventListener {
 		if (LOG.isLoggable(INFO)) {
 			Scanner stdout = new Scanner(torProcess.getInputStream());
 			Scanner stderr = new Scanner(torProcess.getErrorStream());
-			while (stdout.hasNextLine() || stderr.hasNextLine()){
-				if(stdout.hasNextLine()) {
+			while (stdout.hasNextLine() || stderr.hasNextLine()) {
+				if (stdout.hasNextLine()) {
 					LOG.info(stdout.nextLine());
 				}
-				if(stderr.hasNextLine()){
+				if (stderr.hasNextLine()) {
 					LOG.info(stderr.nextLine());
 				}
 			}
@@ -534,7 +521,6 @@ class TorPlugin implements DuplexPlugin, EventHandler, EventListener {
 			}
 		}
 		wakeLock.release();
-		scheduledExecutorServiceWakeLock.cancelAlarm();
 	}
 
 	@Override
