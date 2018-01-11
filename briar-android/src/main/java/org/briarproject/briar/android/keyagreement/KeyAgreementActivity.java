@@ -3,10 +3,10 @@ package org.briarproject.briar.android.keyagreement;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.DialogInterface.OnClickListener;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
+import android.support.annotation.StringRes;
 import android.support.annotation.UiThread;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
@@ -44,6 +44,7 @@ import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
+import static android.Manifest.permission.ACCESS_COARSE_LOCATION;
 import static android.Manifest.permission.CAMERA;
 import static android.bluetooth.BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE;
 import static android.bluetooth.BluetoothAdapter.ACTION_SCAN_MODE_CHANGED;
@@ -54,7 +55,7 @@ import static android.os.Build.VERSION.SDK_INT;
 import static android.widget.Toast.LENGTH_LONG;
 import static java.util.logging.Level.WARNING;
 import static org.briarproject.briar.android.activity.RequestCodes.REQUEST_BLUETOOTH_DISCOVERABLE;
-import static org.briarproject.briar.android.activity.RequestCodes.REQUEST_PERMISSION_CAMERA;
+import static org.briarproject.briar.android.activity.RequestCodes.REQUEST_PERMISSION_CAMERA_LOCATION;
 
 @MethodsNotNullByDefault
 @ParametersNotNullByDefault
@@ -79,7 +80,7 @@ public class KeyAgreementActivity extends BriarActivity implements
 	volatile IdentityManager identityManager;
 
 	private boolean isResumed = false, wasAdapterEnabled = false;
-	private boolean continueClicked, gotCameraPermission;
+	private boolean continueClicked, gotCameraPermission, gotLocationPermission;
 	private BluetoothState bluetoothState = BluetoothState.UNKNOWN;
 	private BroadcastReceiver bluetoothReceiver = null;
 
@@ -214,59 +215,82 @@ public class KeyAgreementActivity extends BriarActivity implements
 	}
 
 	private boolean checkPermissions() {
-		if (ContextCompat.checkSelfPermission(this, CAMERA) !=
-				PERMISSION_GRANTED) {
-			// Should we show an explanation?
-			if (ActivityCompat.shouldShowRequestPermissionRationale(this,
-					CAMERA)) {
-				OnClickListener continueListener =
-						(dialog, which) -> requestPermission();
-				Builder builder = new Builder(this, style.BriarDialogTheme);
-				builder.setTitle(string.permission_camera_title);
-				builder.setMessage(string.permission_camera_request_body);
-				builder.setNeutralButton(string.continue_button,
-						continueListener);
-				builder.show();
-			} else {
-				requestPermission();
-			}
-			return false;
-		} else {
+		gotCameraPermission = checkPermission(CAMERA);
+		gotLocationPermission = checkPermission(ACCESS_COARSE_LOCATION);
+		if (gotCameraPermission && gotLocationPermission) return true;
+		// Should we show an explanation for one or both permissions?
+		boolean cameraRationale = shouldShowRationale(CAMERA);
+		boolean locationRationale = shouldShowRationale(ACCESS_COARSE_LOCATION);
+		if (cameraRationale && locationRationale) {
+			showRationale(string.permission_camera_location_title,
+					string.permission_camera_location_request_body);
+		} else if (cameraRationale) {
+			showRationale(string.permission_camera_title,
+					string.permission_camera_request_body);
+		} else if (locationRationale) {
+			showRationale(string.permission_location_title,
+					string.permission_location_request_body);
+		} else if (gotCameraPermission) {
+			// Location permission has been permanently denied but we can
+			// continue without it
 			return true;
+		} else {
+			requestPermissions();
 		}
+
+		return false;
 	}
 
-	private void requestPermission() {
-		ActivityCompat.requestPermissions(this, new String[] {CAMERA},
-				REQUEST_PERMISSION_CAMERA);
+	private boolean checkPermission(String permission) {
+		return ContextCompat.checkSelfPermission(this, permission)
+				== PERMISSION_GRANTED;
+	}
+
+	private boolean shouldShowRationale(String permission) {
+		return ActivityCompat.shouldShowRequestPermissionRationale(this,
+				permission);
+	}
+
+	private void showRationale(@StringRes int title, @StringRes int body) {
+		Builder builder = new Builder(this, style.BriarDialogTheme);
+		builder.setTitle(title);
+		builder.setMessage(body);
+		builder.setNeutralButton(string.continue_button,
+				(dialog, which) -> requestPermissions());
+		builder.show();
+	}
+
+	private void requestPermissions() {
+		ActivityCompat.requestPermissions(this,
+				new String[] {CAMERA, ACCESS_COARSE_LOCATION},
+				REQUEST_PERMISSION_CAMERA_LOCATION);
 	}
 
 	@Override
 	@UiThread
 	public void onRequestPermissionsResult(int requestCode,
 			String permissions[], int[] grantResults) {
-		if (requestCode == REQUEST_PERMISSION_CAMERA) {
-			// If request is cancelled, the result arrays are empty.
-			if (grantResults.length > 0 &&
-					grantResults[0] == PERMISSION_GRANTED) {
-				gotCameraPermission = true;
-			} else {
-				if (!ActivityCompat.shouldShowRequestPermissionRationale(this,
-						CAMERA)) {
+		if (requestCode == REQUEST_PERMISSION_CAMERA_LOCATION) {
+			// If request is cancelled, the result arrays are empty
+			gotCameraPermission = grantResults.length > 0
+					&& grantResults[0] == PERMISSION_GRANTED;
+			gotLocationPermission = grantResults.length > 1
+					&& grantResults[1] == PERMISSION_GRANTED;
+			if (!gotCameraPermission) {
+				if (shouldShowRationale(CAMERA)) {
+					Toast.makeText(this, string.permission_camera_denied_toast,
+							LENGTH_LONG).show();
+					supportFinishAfterTransition();
+				} else {
 					// The user has permanently denied the request
-					OnClickListener cancelListener =
-							(dialog, which) -> supportFinishAfterTransition();
 					Builder builder = new Builder(this, style.BriarDialogTheme);
 					builder.setTitle(string.permission_camera_title);
 					builder.setMessage(string.permission_camera_denied_body);
 					builder.setPositiveButton(string.ok,
 							UiUtils.getGoToSettingsListener(this));
-					builder.setNegativeButton(string.cancel, cancelListener);
+					builder.setNegativeButton(string.cancel,
+							(dialog, which) -> supportFinishAfterTransition());
 					builder.show();
-				} else {
-					Toast.makeText(this, string.permission_camera_denied_toast,
-							LENGTH_LONG).show();
-					supportFinishAfterTransition();
 				}
 			}
 		}
