@@ -106,7 +106,8 @@ class TorPlugin implements DuplexPlugin, EventHandler, EventListener {
 	};
 	private static final String OWNER = "__OwningControllerProcess";
 	private static final int COOKIE_TIMEOUT = 3000; // Milliseconds
-	private static final Pattern ONION = Pattern.compile("[a-z2-7]{16}");
+	private static final Pattern ONION_V2 = Pattern.compile("[a-z2-7]{16}");
+	private static final Pattern ONION_V3 = Pattern.compile("[a-z2-7]{56}");
 	private static final Logger LOG =
 			Logger.getLogger(TorPlugin.class.getName());
 
@@ -451,9 +452,12 @@ class TorPlugin implements DuplexPlugin, EventHandler, EventListener {
 		Map<String, String> response;
 		try {
 			// Use the control connection to set up the hidden service
-			if (privKey == null)
-				response = controlConnection.addOnion(portLines);
-			else response = controlConnection.addOnion(privKey, portLines);
+			if (privKey == null) {
+				response = controlConnection.addOnion("NEW:ED25519-V3",
+						portLines, null);
+			} else {
+				response = controlConnection.addOnion(privKey, portLines);
+			}
 		} catch (IOException e) {
 			if (LOG.isLoggable(WARNING)) LOG.log(WARNING, e.toString(), e);
 			return;
@@ -577,7 +581,8 @@ class TorPlugin implements DuplexPlugin, EventHandler, EventListener {
 	private DuplexTransportConnection createConnection(TransportProperties p) {
 		String onion = p.get(PROP_ONION);
 		if (StringUtils.isNullOrEmpty(onion)) return null;
-		if (!ONION.matcher(onion).matches()) {
+		if (!ONION_V3.matcher(onion).matches()
+				&& !ONION_V2.matcher(onion).matches()) {
 			// not scrubbing this address, so we are able to find the problem
 			if (LOG.isLoggable(INFO)) LOG.info("Invalid hostname: " + onion);
 			return null;
@@ -586,7 +591,6 @@ class TorPlugin implements DuplexPlugin, EventHandler, EventListener {
 		try {
 			if (LOG.isLoggable(INFO))
 				LOG.info("Connecting to " + scrubOnion(onion));
-			controlConnection.forgetHiddenService(onion);
 			s = torSocketFactory.createSocket(onion + ".onion", 80);
 			s.setSoTimeout(socketTimeout);
 			if (LOG.isLoggable(INFO))
@@ -778,7 +782,7 @@ class TorPlugin implements DuplexPlugin, EventHandler, EventListener {
 
 		private synchronized void enableNetwork(boolean enable) {
 			networkEnabled = enable;
-			circuitBuilt = false;
+			if (!enable) circuitBuilt = false;
 		}
 
 		private synchronized boolean isConnected() {
