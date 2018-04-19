@@ -12,6 +12,7 @@ import org.briarproject.bramble.keyagreement.KeyAgreementModule;
 import org.briarproject.bramble.lifecycle.LifecycleModule;
 import org.briarproject.bramble.plugin.PluginModule;
 import org.briarproject.bramble.properties.PropertiesModule;
+import org.briarproject.bramble.record.RecordModule;
 import org.briarproject.bramble.reliability.ReliabilityModule;
 import org.briarproject.bramble.reporting.ReportingModule;
 import org.briarproject.bramble.settings.SettingsModule;
@@ -35,6 +36,7 @@ import dagger.Module;
 		LifecycleModule.class,
 		PluginModule.class,
 		PropertiesModule.class,
+		RecordModule.class,
 		ReliabilityModule.class,
 		ReportingModule.class,
 		SettingsModule.class,
