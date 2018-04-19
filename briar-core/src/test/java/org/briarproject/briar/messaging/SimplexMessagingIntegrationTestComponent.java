@@ -16,6 +16,7 @@ import org.briarproject.bramble.db.DatabaseModule;
 import org.briarproject.bramble.event.EventModule;
 import org.briarproject.bramble.identity.IdentityModule;
 import org.briarproject.bramble.lifecycle.LifecycleModule;
+import org.briarproject.bramble.record.RecordModule;
 import org.briarproject.bramble.sync.SyncModule;
 import org.briarproject.bramble.system.SystemModule;
 import org.briarproject.bramble.test.TestDatabaseModule;
@@ -45,6 +46,7 @@ import dagger.Component;
 		IdentityModule.class,
 		LifecycleModule.class,
 		MessagingModule.class,
+		RecordModule.class,
 		SyncModule.class,
 		SystemModule.class,
 		TransportModule.class
