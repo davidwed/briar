@@ -16,6 +16,7 @@ import org.briarproject.bramble.api.sync.event.MessageAddedEvent;
 import org.briarproject.bramble.api.transport.KeyManager;
 import org.briarproject.bramble.api.transport.StreamContext;
 import org.briarproject.bramble.api.transport.StreamReaderFactory;
+import org.briarproject.bramble.api.transport.StreamWriter;
 import org.briarproject.bramble.api.transport.StreamWriterFactory;
 import org.briarproject.bramble.system.SystemModule;
 import org.briarproject.bramble.test.TestDatabaseModule;
@@ -32,7 +33,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
-import java.io.OutputStream;
 
 import static org.briarproject.bramble.api.transport.TransportConstants.TAG_LENGTH;
 import static org.briarproject.bramble.test.TestPluginConfigModule.MAX_LATENCY;
@@ -109,14 +109,14 @@ public class SimplexMessagingIntegrationTest extends BriarTestCase {
 		assertNotNull(ctx);
 		// Create a stream writer
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
-		OutputStream streamWriter = streamWriterFactory.createStreamWriter(
+		StreamWriter streamWriter = streamWriterFactory.createStreamWriter(
 				out, ctx);
 		// Create an outgoing sync session
 		SyncSession session = syncSessionFactory.createSimplexOutgoingSession(
 				contactId, MAX_LATENCY, streamWriter);
 		// Write whatever needs to be written
 		session.run();
-		streamWriter.close();
+		streamWriter.sendEndOfStream();
 
 		// Clean up
 		lifecycleManager.stopServices();
